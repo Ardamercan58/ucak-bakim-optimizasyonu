@@ -23,8 +23,8 @@ st.write("Uçak bilgilerini sol menüden değiştirip 'Planlamayı Başlat' buto
 # SOL PANEL: KULLANICI GİRDİLERİ (INTERFACE)
 # =========================================================================
 st.sidebar.header("🛠️ Genel Planlama Parametreleri")
-TOPLAM_SLOT = st.sidebar.number_input("Toplam Hangar Slot Sayısı", min_value=1, max_value=5, value=2)
-GUNLUK_MAKS_ADAM_SAAT = st.sidebar.number_input("Günlük Maksimum Adam/Saat", min_value=10, max_value=200, value=60)
+TOPLAM_SLOT = st.sidebar.number_input("Toplam Hangar Slot Sayısı", min_value=1, max_value=10, value=2)
+GUNLUK_MAKS_ADAM_SAAT = st.sidebar.number_input("Günlük Maksimum Adam/Saat", min_value=10, max_value=2000, value=60)
 PLANLAMA_UFUKU = st.sidebar.number_input("Planlama Zaman Ufku (Gün)", min_value=5, max_value=30, value=15)
 
 st.sidebar.header("🛩️ Uçak Özellikleri")
