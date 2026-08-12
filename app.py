@@ -220,7 +220,7 @@ if baslat_butonu and len(guncel_ucaklar) > 0:
             max_kapasite_gun = TOPLAM_SLOT * PLANLAMA_UFUKU
             doluluk_orani = (toplam_is_gunu / max_kapasite_gun) * 100 if max_kapasite_gun > 0 else 0
             
-            fig_gauge = go.Figure(go.Indicator(
+                        fig_gauge = go.Figure(go.Indicator(
                 mode="gauge+number", 
                 value=doluluk_orani,
                 title={'text': "Hangar Slot Doluluk Oranı (%)"},
@@ -235,6 +235,7 @@ if baslat_butonu and len(guncel_ucaklar) > 0:
             ))
             fig_gauge.update_layout(height=180, margin=dict(l=10, r=10, t=40, b=10))
             st.plotly_chart(fig_gauge, use_container_width=True)
+
 
         st.markdown("---")
 
