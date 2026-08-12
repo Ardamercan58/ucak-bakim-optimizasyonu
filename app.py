@@ -25,14 +25,11 @@ st.sidebar.markdown("---")
 st.sidebar.header("🛩️ 2. Filo Yönetimi (Uçak Ekleme)")
 
 # Session State ile dinamik uçak listesi tutma
-# Doğru olan yeni blok:
 if "ucak_listesi" not in st.session_state:
     st.session_state.ucak_listesi = [
         {"ad": "TC-JPE", "model_tipi": "Dar Gövde (A320/B737)", "bakim_tipi": "C-Check", "teslim_hedefi": 5, "ceza": 1000, "parca_gun": 0, "oncelik": "3 - Normal"},
         {"ad": "TC-JJJ", "model_tipi": "Geniş Gövde (A330/B787)", "bakim_tipi": "D-Check", "teslim_hedefi": 8, "ceza": 2000, "parca_gun": 2, "oncelik": "5 - AOG (Kritik)"},
     ]
-
-    
 
 # Yeni uçak ekleme arayüzü
 with st.sidebar.expander("➕ Yeni Uçak Tanımla", expanded=False):
@@ -65,7 +62,7 @@ for idx, uc in enumerate(st.session_state.ucak_listesi):
         u_parca = st.number_input("Parça Günü", min_value=0, value=uc["parca_gun"], key=f"prc_{idx}")
         u_oncelik = st.selectbox("Öncelik", ["1 - Düşük", "2 - Düşük-Orta", "3 - Normal", "4 - Yüksek", "5 - AOG (Kritik)"], index=int(uc["oncelik"][0])-1, key=f"onc_{idx}")
         
-        # Bakım tipine göre otomatik teknik kısıt atamaları (Öneri 3)
+        # Bakım tipine göre otomatik teknik kısıt atamaları
         if "A-Check" in u_bakim:
             sure, adam = 2, 15
         elif "C-Check" in u_bakim:
@@ -92,7 +89,7 @@ def gelismis_optimizasyon(ucaklar, TOPLAM_SLOT, GUNLUK_MAKS_ADAM_SAAT, PLANLAMA_
     baslangic, bitis, aralik, gecikmeler, slot_atama = {}, {}, {}, {}, {}
     bugun = datetime.now()
 
-    # Hafta sonu günlerinin indeks tespiti (Öneri 4)
+    # Hafta sonu günlerinin indeks tespiti
     haftasonu_indeksleri = []
     for d in range(PLANLAMA_UFUKU + 1):
         gelecek_tarih = bugun + timedelta(days=d)
@@ -104,7 +101,7 @@ def gelismis_optimizasyon(ucaklar, TOPLAM_SLOT, GUNLUK_MAKS_ADAM_SAAT, PLANLAMA_
         bitis[i] = model.NewIntVar(0, PLANLAMA_UFUKU, f"bit_{i}")
         aralik[i] = model.NewIntervalVar(baslangic[i], ucak["sure"], bitis[i], f"aralik_{i}")
         
-        # Hangar Slot Kısıtı (Öneri 2: Geniş gövde sadece Slot 2'ye girebilsin örnek kısıtı)
+        # Hangar Slot Kısıtı: Geniş gövde sadece Slot 2 ve sonrasına girebilsin
         if "Geniş Gövde" in ucak["model_tipi"] and TOPLAM_SLOT >= 2:
             slot_atama[i] = model.NewIntVar(2, TOPLAM_SLOT, f"slot_{i}")
         else:
@@ -113,7 +110,7 @@ def gelismis_optimizasyon(ucaklar, TOPLAM_SLOT, GUNLUK_MAKS_ADAM_SAAT, PLANLAMA_
         gecikmeler[i] = model.NewIntVar(0, PLANLAMA_UFUKU, f"gecikme_{i}")
         model.AddMaxEquality(gecikmeler[i], [0, bitis[i] - ucak["teslim_hedefi"]])
 
-        # Hafta sonu yasağı kısıtı (Öneri 4)
+        # Hafta sonu yasağı kısıtı
         if HAFTA_SONU_YASAGI:
             for h_gun in haftasonu_indeksleri:
                 model.Add(baslangic[i] != h_gun)
@@ -139,7 +136,7 @@ def gelismis_optimizasyon(ucaklar, TOPLAM_SLOT, GUNLUK_MAKS_ADAM_SAAT, PLANLAMA_
             model.Add(bitis[j] <= baslangic[i]).OnlyEnforceIf([ayni_slot, j_once])
             model.AddBoolOr([i_once, j_once]).OnlyEnforceIf(ayni_slot)
 
-    # Öncelikli Amaç Fonksiyonu (Öneri 1: Cezalar uçak öncelik katsayısı ile çarpılır)
+    # Öncelikli Amaç Fonksiyonu
     toplam_ceza = sum(gecikmeler[i] * ucaklar[i]["ceza"] * ucaklar[i]["oncelik"] for i in range(len(ucaklar)))
     model.Minimize(toplam_ceza)
 
@@ -184,10 +181,8 @@ if baslat_butonu and len(guncel_ucaklar) > 0:
                 "Öncelik Skoru": uc["oncelik"],
                 "Durum": "🔴 Gecikmeli" if g_gun > 0 else "🟢 Zamanında"
             })
+        df = pd.DataFrame(veri)
 
-
-df = pd.DataFrame(veri)# Gantt Grafik Gösterimist.subheader("📊 Dijital Bakım Planlama Gantt Çizelgesi")fig = px.timeline(df, x_start="Planlanan Başlangıç", x_end="Planlanan Bitiş", y="Atanan Slot",color="Uçak Tescil", text="Uçak Tescil",hover_data=["Bakım Türü", "Gövde Tipi", "Gecikme (Gün)", "Durum"])fig.update_yaxes(autorange="reversed")fig.update_layout(xaxis_title="Operasyon Zaman Akışı", height=400, legend_title="Uçaklar")st.plotly_chart(fig, use_container_width=True)# Tablost.subheader("📋 Detaylı Çizelge Raporu")st.dataframe(df, use_container_width=True)# Excel Olarak İndirme Butonu (Öneri 5)buffer = io.BytesIO()with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:df.to_excel(writer, sheet_name='Bakım_Plani', index=False)st.download_button(label="📥 Planlama Raporunu Excel Olarak İndir",data=buffer.getvalue(),file_name=f"Turkish_Technic_Bakim_Plani_{datetime.now().strftime('%Y%m%d')}.xlsx",mime="application/vnd.ms-excel")elif len(guncel_ucaklar) == 0:st.warning("⚠️ Lütfen sol menüden filoya en az bir uçak ekleyin.")else:st.info("💡 Yeni kısıtlar ve uçaklar sisteme entegre edildi. Hesaplamayı başlatmak için sol panelin altındaki 'Planlamayı Başlat' butonuna basın.")
-
-
-
-
+        # Gantt Grafik Gösterimi
+        st.subheader("📊 Dijital Bakım Planlama Gantt Çizelgesi")
+fig = px.timeline(df, x_start="Planlanan Başlangıç", x_end="Planlanan Bitiş", y="Atanan Slot",color="Uçak Tescil", text="Uçak Tescil",hover_data=["Bakım Türü", "Gövde Tipi", "Gecikme (Gün)", "Durum"])fig.update_yaxes(autorange="reversed")fig.update_layout(xaxis_title="Operasyon Zaman Akışı", height=400, legend_title="Uçaklar")st.plotly_chart(fig, use_container_width=True)# Tablost.subheader("📋 Detaylı Çizelge Raporu")st.dataframe(df, use_container_width=True)# Excel Olarak İndirme Butonubuffer = io.BytesIO()with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:df.to_excel(writer, sheet_name='Bakım_Plani', index=False)st.download_button(label="📥 Planlama Raporunu Excel Olarak İndir",data=buffer.getvalue(),file_name=f"Turkish_Technic_Bakim_Plani_{datetime.now().strftime('%Y%m%d')}.xlsx",mime="application/vnd.ms-excel")elif len(guncel_ucaklar) == 0:st.warning("⚠️ Lütfen sol menüden filoya en az bir uçak ekleyin.")else:st.info("💡 Yeni kısıtlar ve uçaklar sisteme entegre edildi. Hesaplamayı başlatmak için sol panelin altındaki 'Planlamayı Başlat' butonuna basın.")
