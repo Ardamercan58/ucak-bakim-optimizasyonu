@@ -185,6 +185,7 @@ if baslat_butonu and len(guncel_ucaklar) > 0:
 
         
                 # Gantt Grafik Gösterimi
+                # Gantt Grafik Gösterimi
         st.subheader("📊 Dijital Bakım Planlama Gantt Çizelgesi")
         fig = px.timeline(
             df, 
@@ -198,4 +199,13 @@ if baslat_butonu and len(guncel_ucaklar) > 0:
         fig.update_yaxes(autorange="reversed")
         fig.update_layout(xaxis_title="Operasyon Zaman Akışı", height=400, legend_title="Uçaklar")
         st.plotly_chart(fig, use_container_width=True)
+
+        # 📋 İŞTE GERİ GELEN DETAYLI TABLO
+        st.subheader("📋 Detaylı Çizelge Raporu")
+        st.dataframe(df, use_container_width=True)
+
+        # Excel Olarak İndirme Butonu
+        buffer = io.BytesIO()
+        with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+            df.to_excel(writer, sheet_name='Bakım_Plani', index=False)
 
