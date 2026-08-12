@@ -180,4 +180,105 @@ if baslat_butonu and len(guncel_ucaklar) > 0:
 
         for i, uc in enumerate(guncel_ucaklar):
             b_gun = solver.Value(baslangic[i])
-bt_gun = solver.Value(bitis[i])g_gun = solver.Value(gecikmeler[i])gercek_maliyet = g_gun * uc["ceza"]toplam_is_gunu += uc["sure"]veri.append({"Uçak Tescil": uc["ad"],"Gövde Tipi": uc["model_tipi"],"Bakım Türü": uc["bakim_tipi"],"Atanan Slot": f"Hangar Slot {solver.Value(slot_atama[i])}","Planlanan Başlangıç": (bugun + timedelta(days=b_gun)).strftime("%Y-%m-%d %H:%M"),"Planlanan Bitiş": (bugun + timedelta(days=bt_gun)).strftime("%Y-%m-%d %H:%M"),"Süre (Gün)": uc["sure"],"Gecikme (Gün)": g_gun,"Ceza Maliyeti ($)": gercek_maliyet,"Durum": "🔴 Gecikmeli" if g_gun > 0 else "🟢 Zamanında"})if gercek_maliyet > 0:maliyet_veri.append({"Uçak": uc["ad"], "Maliyet": gercek_maliyet})df = pd.DataFrame(veri)# Üst Metrikler ve Hangar Verimlilik Göstergesi (KPIs)st.subheader("📊 Operasyonel Performans Özet Paneli")m1, m2, m3 = st.columns([1, 1, 2])with m1:st.metric("Toplam Gerçekleşen Ceza", f"{df['Ceza Maliyeti ($)'].sum():,.0f} $")st.metric("Zamanında Teslim Oranı", f"{(df['Gecikme (Gün)'] == 0).mean() * 100:.0f}%")with m2:st.metric("Planlanan Uçak", f"{len(guncel_ucaklar)} Adet")st.metric("Toplam Bakım İş Gücü", f"{toplam_is_gunu} Gün")with m3:max_kapasite_gun = TOPLAM_SLOT * PLANLAMA_UFUKUdoluluk_orani = (toplam_is_gunu / max_kapasite_gun) * 100 if max_kapasite_gun > 0 else 0fig_gauge = go.Figure(go.Indicator(mode="gauge+number",value=doluluk_orani,title={'text': "Hangar Slot Doluluk Oranı (%)"},gauge={'axis': {'range': [0, 100]},'bar': {'color': "darkblue"},'steps': [{'range':, 'color': 'lightgray'}, {'range':, 'color': 'gray'}]}))fig_gauge.update_layout(height=180, margin=dict(l=10, r=10, t=40, b=10))st.plotly_chart(fig_gauge, use_container_width=True)st.markdown("---")# Görsel Paneller (Grafikler)g1, g2 = st.columns(2)with g1:st.subheader("📅 Dijital Bakım Planlama Gantt Çizelgesi")fig = px.timeline(df,x_start="Planlanan Başlangıç",x_end="Planlanan Bitiş",y="Atanan Slot",color="Uçak Tescil",text="Uçak Tescil",hover_data=["Bakım Türü", "Gövde Tipi", "Gecikme (Gün)", "Durum"])fig.update_yaxes(autorange="reversed")fig.update_layout(xaxis_title="Operasyon Zaman Akışı", height=350, legend_title="Uçaklar")st.plotly_chart(fig, use_container_width=True)with g2:st.subheader("💰 Ceza Maliyet Dağılımı")if len(maliyet_veri) > 0:df_mal = pd.DataFrame(maliyet_veri)fig_pie = px.pie(df_mal, values='Maliyet', names='Uçak', hole=.3, color_discrete_sequence=px.colors.sequential.RdBu)fig_pie.update_layout(height=350, margin=dict(l=10, r=10, t=10, b=10))st.plotly_chart(fig_pie, use_container_width=True)else:st.success("🎉 Harika! Hiçbir uçakta gecikme cezası oluşmadı.")# Tablo Gösterimist.subheader("📋 Detaylı Çizelge Raporu")st.dataframe(df, use_container_width=True)# Excel İndirme Butonubuffer = io.BytesIO()with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:df.to_excel(writer, sheet_name='Bakım_Plani', index=False)st.download_button(label="📥 Planlama Raporunu Excel Olarak İndir",data=buffer.getvalue(),file_name=f"Turkish_Technic_Gelişmiş_Plan_{datetime.now().strftime('%Y%m%d')}.xlsx",mime="application/vnd.ms-excel")elif len(guncel_ucaklar) == 0:st.warning("⚠️ Lütfen sol menüden filoya en az bir uçak ekleyin.")else:st.info("💡 Tüm kurumsal ve teknik kısıtlar entegre edildi. Başlatmak için sol paneldeki 'Planlamayı Başlat' butonuna basın.")
+        for i, uc in enumerate(guncel_ucaklar):
+            b_gun = solver.Value(baslangic[i])
+            bt_gun = solver.Value(bitis[i])
+            g_gun = solver.Value(gecikmeler[i])
+            gercek_maliyet = g_gun * uc["ceza"]
+            toplam_is_gunu += uc["sure"]
+
+            veri.append({
+                "Uçak Tescil": uc["ad"],
+                "Gövde Tipi": uc["model_tipi"],
+                "Bakım Türü": uc["bakim_tipi"],
+                "Atanan Slot": f"Hangar Slot {solver.Value(slot_atama[i])}",
+                "Planlanan Başlangıç": (bugun + timedelta(days=b_gun)).strftime("%Y-%m-%d %H:%M"),
+                "Planlanan Bitiş": (bugun + timedelta(days=bt_gun)).strftime("%Y-%m-%d %H:%M"),
+                "Süre (Gün)": uc["sure"],
+                "Gecikme (Gün)": g_gun,
+                "Ceza Maliyeti ($)": gercek_maliyet,
+                "Durum": "🔴 Gecikmeli" if g_gun > 0 else "🟢 Zamanında"
+            })
+            
+            if gercek_maliyet > 0:
+                maliyet_veri.append({"Uçak": uc["ad"], "Maliyet": gercek_maliyet})
+
+        df = pd.DataFrame(veri)
+
+        st.subheader("📊 Operasyonel Performans Özet Paneli")
+        m1, m2, m3 = st.columns(3)
+        
+        with m1:
+            st.metric("Toplam Gerçekleşen Ceza", f"{df['Ceza Maliyeti ($)'].sum():,.0f} $")
+            st.metric("Zamanında Teslim Oranı", f"{(df['Gecikme (Gün)'] == 0).mean() * 100:.0f}%")
+            
+        with m2:
+            st.metric("Planlanan Uçak", f"{len(guncel_ucaklar)} Adet")
+            st.metric("Toplam Bakım İş Gücü", f"{toplam_is_gunu} Gün")
+            
+        with m3:
+            max_kapasite_gun = TOPLAM_SLOT * PLANLAMA_UFUKU
+            doluluk_orani = (toplam_is_gunu / max_kapasite_gun) * 100 if max_kapasite_gun > 0 else 0
+            
+            fig_gauge = go.Figure(go.Indicator(
+                mode="gauge+number", 
+                value=doluluk_orani,
+                title={'text': "Hangar Slot Doluluk Oranı (%)"},
+                gauge={
+                    'axis': {'range': [0, 100]}, 
+                    'bar': {'color': "darkblue"},
+                    'steps': [
+                        {'range':, 'color': 'lightgray'}, 
+                        {'range':, 'color': 'gray'}
+                    ]
+                }
+            ))
+            fig_gauge.update_layout(height=180, margin=dict(l=10, r=10, t=40, b=10))
+            st.plotly_chart(fig_gauge, use_container_width=True)
+
+        st.markdown("---")
+
+        g1, g2 = st.columns(2)
+        
+        with g1:
+            st.subheader("📅 Dijital Bakım Planlama Gantt Çizelgesi")
+            fig = px.timeline(
+                df, 
+                x_start="Planlanan Başlangıç", 
+                x_end="Planlanan Bitiş", 
+                y="Atanan Slot", 
+                color="Uçak Tescil", 
+                text="Uçak Tescil",
+                hover_data=["Bakım Türü", "Gövde Tipi", "Gecikme (Gün)", "Durum"]
+            )
+            fig.update_yaxes(autorange="reversed")
+            fig.update_layout(xaxis_title="Operasyon Zaman Akışı", height=350, legend_title="Uçaklar")
+            st.plotly_chart(fig, use_container_width=True)
+            
+        with g2:
+            st.subheader("💰 Ceza Maliyet Dağılımı")
+            if len(maliyet_veri) > 0:
+                df_mal = pd.DataFrame(maliyet_veri)
+                fig_pie = px.pie(df_mal, values='Maliyet', names='Uçak', hole=.3, color_discrete_sequence=px.colors.sequential.RdBu)
+                fig_pie.update_layout(height=350, margin=dict(l=10, r=10, t=10, b=10))
+                st.plotly_chart(fig_pie, use_container_width=True)
+            else:
+                st.success("🎉 Harika! Hiçbir uçakta gecikme cezası oluşmadı.")
+
+        st.subheader("📋 Detaylı Çizelge Raporu")
+        st.dataframe(df, use_container_width=True)
+
+        buffer = io.BytesIO()
+        with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+            df.to_excel(writer, sheet_name='Bakım_Plani', index=False)
+        
+        st.download_button(
+            label="📥 Planlama Raporunu Excel Olarak İndir",
+            data=buffer.getvalue(),
+            file_name=f"Turkish_Technic_Gelişmiş_Plan_{datetime.now().strftime('%Y%m%d')}.xlsx",
+            mime="application/vnd.ms-excel"
+        )
+elif len(guncel_ucaklar) == 0:
+    st.warning("⚠️ Lütfen sol menüden filoya en az bir uçak ekleyin.")
+else:
+    st.info("💡 Tüm kurumsal ve teknik kısıtlar entegre edildi. Başlatmak için sol paneldeki **'Planlamayı Başlat'** butonuna basın.")
