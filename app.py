@@ -18,15 +18,15 @@ st.write("Yapay Zeka Destekli Operasyonel Çizelgeleme ve Kaynak Planlama Kontro
 # =========================================================================
 st.sidebar.header("⚙️ 1. Planlama Kontrol Parametreleri")
 PLAN_BASLANGIC = st.sidebar.date_input("Planlama Başlangıç Tarihi", date.today())
-TOPLAM_SLOT = st.sidebar.number_input("Toplam Hangar Slot Sayısı", min_value=1, max_value=5, value=2)
-PLANLAMA_UFUKU = st.sidebar.number_input("Zaman Ufku (Gün)", min_value=5, max_value=40, value=20)
+TOPLAM_SLOT = st.sidebar.number_input("Toplam Hangar Slot Sayısı", min_value=1, max_value=10, value=2)
+PLANLAMA_UFUKU = st.sidebar.number_input("Zaman Ufku (Gün)", min_value=5, max_value=400, value=20)
 HAFTA_SONU_YASAGI = st.sidebar.checkbox("Bakım hafta sonu başlayamaz / bitemez", value=True)
 
 st.sidebar.markdown("---")
 st.sidebar.header("👷 2. Teknik Personel & Sertifika Kısıtları")
-GUNLUK_MAKS_ADAM_SAAT = st.sidebar.number_input("Günlük Maksimum Adam/Saat", min_value=10, max_value=400, value=80)
-DAR_GOVDE_TEKNISYEN = st.sidebar.number_input("Maks. Dar Gövde Teknisyeni / Gün", min_value=1, max_value=50, value=15)
-GENIS_GOVDE_TEKNISYEN = st.sidebar.number_input("Maks. Geniş Gövde Teknisyeni / Gün", min_value=1, max_value=50, value=15)
+GUNLUK_MAKS_ADAM_SAAT = st.sidebar.number_input("Günlük Maksimum Adam/Saat", min_value=10, max_value=4000, value=80)
+DAR_GOVDE_TEKNISYEN = st.sidebar.number_input("Maks. Dar Gövde Teknisyeni / Gün", min_value=1, max_value=500, value=15)
+GENIS_GOVDE_TEKNISYEN = st.sidebar.number_input("Maks. Geniş Gövde Teknisyeni / Gün", min_value=1, max_value=500, value=15)
 
 st.sidebar.markdown("---")
 st.sidebar.header("🛩️ 3. Filo Yönetimi (Uçak Ekleme)")
