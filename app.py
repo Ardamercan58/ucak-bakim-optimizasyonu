@@ -1,86 +1,130 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Wed Aug 12 10:51:41 2026
-
-@author: ardamercan
-"""
-
 import streamlit as st
 from datetime import datetime, timedelta
 from ortools.sat.python import cp_model
 import pandas as pd
 import plotly.express as px
+import io
 
 # =========================================================================
-# ARAYÜZ BAŞLIĞI VE AYARLARI
+# CONFIG & BAŞLIK
 # =========================================================================
-st.set_page_config(page_title="Turkish Technic Optimizasyon", layout="wide")
-st.title("✈️ Turkish Technic - Bakım Slot Optimizasyonu")
-st.write("Uçak bilgilerini sol menüden değiştirip 'Planlamayı Başlat' butonuna basın.")
+st.set_page_config(page_title="Turkish Technic Gelişmiş Optimizasyon", layout="wide")
+st.title("✈️ Gelişmiş Uçak Bakım Slot Optimizasyon Sistemi")
+st.write("Turkish Technic operasyonel kurallarına göre dinamik planlama paneli.")
 
 # =========================================================================
-# SOL PANEL: KULLANICI GİRDİLERİ (INTERFACE)
+# SOL PANEL: GENEL PARAMETRELER
 # =========================================================================
-st.sidebar.header("🛠️ Genel Planlama Parametreleri")
-TOPLAM_SLOT = st.sidebar.number_input("Toplam Hangar Slot Sayısı", min_value=1, max_value=10, value=2)
-GUNLUK_MAKS_ADAM_SAAT = st.sidebar.number_input("Günlük Maksimum Adam/Saat", min_value=10, max_value=2000, value=60)
-PLANLAMA_UFUKU = st.sidebar.number_input("Planlama Zaman Ufku (Gün)", min_value=5, max_value=30, value=15)
+st.sidebar.header("⚙️ 1. Genel Planlama Ayarları")
+TOPLAM_SLOT = st.sidebar.number_input("Toplam Hangar Slot Sayısı", min_value=1, max_value=5, value=2)
+GUNLUK_MAKS_ADAM_SAAT = st.sidebar.number_input("Günlük Maksimum Adam/Saat", min_value=10, max_value=300, value=70)
+PLANLAMA_UFUKU = st.sidebar.number_input("Zaman Ufku (Gün)", min_value=5, max_value=40, value=20)
+HAFTA_SONU_YASAGI = st.sidebar.checkbox("Bakım hafta sonu başlayamaz / bitemez", value=True)
 
-st.sidebar.header("🛩️ Uçak Özellikleri")
+st.sidebar.markdown("---")
+st.sidebar.header("🛩️ 2. Filo Yönetimi (Uçak Ekleme)")
 
-# Uçak verilerini kullanıcıdan dinamik almak için form alanları
-ucaklar = []
-ucak_harfleri = ["A", "B", "C", "D"]
-varsayilanlar = [
-    {"sure": 4, "hedef": 5, "ceza": 1000, "adam": 25, "parca": 0, "model": "A320"},
-    {"sure": 3, "hedef": 4, "ceza": 1500, "adam": 30, "parca": 2, "model": "B737"},
-    {"sure": 6, "hedef": 8, "ceza": 2000, "adam": 40, "parca": 0, "model": "A330"},
-    {"sure": 5, "hedef": 6, "ceza": 1200, "adam": 35, "parca": 1, "model": "B787"},
-]
+# Session State ile dinamik uçak listesi tutma
+if "ucak_listesi" not in st.st_profile if hasattr(st, "st_profile") else st.session_state:
+    st.session_state.ucak_listesi = [
+        {"ad": "TC-JPE", "model_tipi": "Dar Gövde (A320/B737)", "bakim_tipi": "C-Check", "teslim_hedefi": 5, "ceza": 1000, "parca_gun": 0, "oncelik": "3 - Normal"},
+        {"ad": "TC-JJJ", "model_tipi": "Geniş Gövde (A330/B787)", "bakim_tipi": "D-Check", "teslim_hedefi": 8, "ceza": 2000, "parca_gun": 2, "oncelik": "5 - AOG (Kritik)"},
+    ]
 
-for i, harf in enumerate(ucak_harfleri):
-    with st.sidebar.expander(f"Uçak_{harf} ({varsayilanlar[i]['model']}) Ayarları"):
-        sure = st.number_input(f"Bakım Süresi (Gün) - Uçak_{harf}", min_value=1, value=varsayilanlar[i]["sure"])
-        hedef = st.number_input(f"Teslim Hedefi (Gün) - Uçak_{harf}", min_value=1, value=varsayilanlar[i]["hedef"])
-        ceza = st.number_input(f"Gecikme Cezası ($) - Uçak_{harf}", min_value=0, value=varsayilanlar[i]["ceza"])
-        adam = st.number_input(f"Günlük Adam/Saat - Uçak_{harf}", min_value=0, value=varsayilanlar[i]["adam"])
-        parca = st.number_input(f"Parça Bekleme Süresi (Gün) - Uçak_{harf}", min_value=0, value=varsayilanlar[i]["parca"])
+# Yeni uçak ekleme arayüzü
+with st.sidebar.expander("➕ Yeni Uçak Tanımla", expanded=False):
+    y_ad = st.text_input("Kuyruk Tescili / Adı", "TC-XYZ")
+    y_model = st.selectbox("Gövde Tipi", ["Dar Gövde (A320/B737)", "Geniş Gövde (A330/B787)"])
+    y_bakim = st.selectbox("Bakım Türü", ["A-Check (Hafif)", "C-Check (Ağır)", "D-Check (En Ağır)"])
+    y_hedef = st.number_input("Hedef Teslim (Gün)", min_value=1, value=6)
+    y_ceza = st.number_input("Gecikme Cezası ($/Gün)", min_value=0, value=1200)
+    y_parca = st.number_input("Parça Bekleme (Gün)", min_value=0, value=0)
+    y_oncelik = st.selectbox("Öncelik Derecesi", ["1 - Düşük", "2 - Düşük-Orta", "3 - Normal", "4 - Yüksek", "5 - AOG (Kritik)"])
+    
+    if st.button("Filoya Ekle"):
+        st.session_state.ucak_listesi.append({
+            "ad": y_ad, "model_tipi": y_model, "bakim_tipi": y_bakim,
+            "teslim_hedefi": y_hedef, "ceza": y_ceza, "parca_gun": y_parca, "oncelik": y_oncelik
+        })
+        st.success(f"{y_ad} başarıyla filoya eklendi!")
+
+# Mevcut Uçakları Listeleme ve Düzenleme
+st.sidebar.write(f"**Filodaki Güncel Uçak Sayısı:** {len(st.session_state.ucak_listesi)}")
+guncel_ucaklar = []
+
+for idx, uc in enumerate(st.session_state.ucak_listesi):
+    with st.sidebar.expander(f"⚙️ {uc['ad']} ({uc['bakim_tipi']})"):
+        u_ad = st.text_input("Ad", uc["ad"], key=f"ad_{idx}")
+        u_model = st.selectbox("Gövde", ["Dar Gövde (A320/B737)", "Geniş Gövde (A330/B787)"], index=0 if "Dar" in uc["model_tipi"] else 1, key=f"mod_{idx}")
+        u_bakim = st.selectbox("Tür", ["A-Check (Hafif)", "C-Check (Ağır)", "D-Check (En Ağır)"], index=0 if "A-Check" in uc["bakim_tipi"] else (1 if "C-Check" in uc["bakim_tipi"] else 2), key=f"bak_{idx}")
+        u_hedef = st.number_input("Hedef (Gün)", min_value=1, value=uc["teslim_hedefi"], key=f"hdf_{idx}")
+        u_ceza = st.number_input("Ceza ($)", min_value=0, value=uc["ceza"], key=f"cz_{idx}")
+        u_parca = st.number_input("Parça Günü", min_value=0, value=uc["parca_gun"], key=f"prc_{idx}")
+        u_oncelik = st.selectbox("Öncelik", ["1 - Düşük", "2 - Düşük-Orta", "3 - Normal", "4 - Yüksek", "5 - AOG (Kritik)"], index=int(uc["oncelik"][0])-1, key=f"onc_{idx}")
         
-        ucaklar.append({
-            "ad": f"Uçak_{harf} ({varsayilanlar[i]['model']})",
-            "sure": sure,
-            "teslim_hedefi": hedef,
-            "ceza": ceza,
-            "adam_saat": adam,
-            "parca_gun": parca
+        # Bakım tipine göre otomatik teknik kısıt atamaları (Öneri 3)
+        if "A-Check" in u_bakim:
+            sure, adam = 2, 15
+        elif "C-Check" in u_bakim:
+            sure, adam = 5, 30
+        else: # D-Check
+            sure, adam = 8, 45
+            
+        guncel_ucaklar.append({
+            "ad": u_ad, "model_tipi": u_model, "bakim_tipi": u_bakim, "sure": sure, "adam_saat": adam,
+            "teslim_hedefi": u_hedef, "ceza": u_ceza, "parca_gun": u_parca, "oncelik": int(u_oncelik[0])
         })
 
-# Hesaplama Butonu
+if st.sidebar.button("🗑️ Tüm Filoyu Sıfırla"):
+    st.session_state.ucak_listesi = []
+    st.rerun()
+
 baslat_butonu = st.sidebar.button("🚀 Planlamayı Başlat", type="primary")
 
 # =========================================================================
-# OPTİMİZASYON MOTORU
+# OPERASYONEL OPTİMİZASYON MOTORU
 # =========================================================================
-def optimizasyon_calistir(ucaklar, TOPLAM_SLOT, GUNLUK_MAKS_ADAM_SAAT, PLANLAMA_UFUKU):
+def gelismis_optimizasyon(ucaklar, TOPLAM_SLOT, GUNLUK_MAKS_ADAM_SAAT, PLANLAMA_UFUKU, HAFTA_SONU_YASAGI):
     model = cp_model.CpModel()
     baslangic, bitis, aralik, gecikmeler, slot_atama = {}, {}, {}, {}, {}
+    bugun = datetime.now()
+
+    # Hafta sonu günlerinin indeks tespiti (Öneri 4)
+    haftasonu_indeksleri = []
+    for d in range(PLANLAMA_UFUKU + 1):
+        gelecek_tarih = bugun + timedelta(days=d)
+        if gelecek_tarih.weekday() in (5, 6): # 5: Cumartesi, 6: Pazar
+            haftasonu_indeksleri.append(d)
 
     for i, ucak in enumerate(ucaklar):
         baslangic[i] = model.NewIntVar(0, PLANLAMA_UFUKU - ucak["sure"], f"bas_{i}")
         bitis[i] = model.NewIntVar(0, PLANLAMA_UFUKU, f"bit_{i}")
         aralik[i] = model.NewIntervalVar(baslangic[i], ucak["sure"], bitis[i], f"aralik_{i}")
-        slot_atama[i] = model.NewIntVar(1, TOPLAM_SLOT, f"slot_{i}")
+        
+        # Hangar Slot Kısıtı (Öneri 2: Geniş gövde sadece Slot 2'ye girebilsin örnek kısıtı)
+        if "Geniş Gövde" in ucak["model_tipi"] and TOPLAM_SLOT >= 2:
+            slot_atama[i] = model.NewIntVar(2, TOPLAM_SLOT, f"slot_{i}")
+        else:
+            slot_atama[i] = model.NewIntVar(1, TOPLAM_SLOT, f"slot_{i}")
+            
         gecikmeler[i] = model.NewIntVar(0, PLANLAMA_UFUKU, f"gecikme_{i}")
         model.AddMaxEquality(gecikmeler[i], [0, bitis[i] - ucak["teslim_hedefi"]])
 
-    model.AddCumulative(intervals=[aralik[i] for i in range(len(ucaklar))], demands=[1 for _ in ucaklar], capacity=TOPLAM_SLOT)
-    model.AddCumulative(intervals=[aralik[i] for i in range(len(ucaklar))], demands=[ucak["adam_saat"] for ucak in ucaklar], capacity=GUNLUK_MAKS_ADAM_SAAT)
+        # Hafta sonu yasağı kısıtı (Öneri 4)
+        if HAFTA_SONU_YASAGI:
+            for h_gun in haftasonu_indeksleri:
+                model.Add(baslangic[i] != h_gun)
+                model.Add(bitis[i] != h_gun)
 
-    for i, ucak in enumerate(ucaklar):
+        # Parça Tedarik Kısıtı
         if ucak["parca_gun"] > 0:
             model.Add(baslangic[i] >= ucak["parca_gun"])
 
+    # Kapasite Kısıtları
+    model.AddCumulative(intervals=[aralik[i] for i in range(len(ucaklar))], demands=[1 for _ in ucaklar], capacity=TOPLAM_SLOT)
+    model.AddCumulative(intervals=[aralik[i] for i in range(len(ucaklar))], demands=[ucak["adam_saat"] for ucak in ucaklar], capacity=GUNLUK_MAKS_ADAM_SAAT)
+
+    # Çakışma ve Slot Atama Mantığı
     for i in range(len(ucaklar)):
         for j in range(i + 1, len(ucaklar)):
             ayni_slot = model.NewBoolVar(f"ayni_slot_{i}_{j}")
@@ -92,7 +136,8 @@ def optimizasyon_calistir(ucaklar, TOPLAM_SLOT, GUNLUK_MAKS_ADAM_SAAT, PLANLAMA_
             model.Add(bitis[j] <= baslangic[i]).OnlyEnforceIf([ayni_slot, j_once])
             model.AddBoolOr([i_once, j_once]).OnlyEnforceIf(ayni_slot)
 
-    toplam_ceza = sum(gecikmeler[i] * ucaklar[i]["ceza"] for i in range(len(ucaklar)))
+    # Öncelikli Amaç Fonksiyonu (Öneri 1: Cezalar uçak öncelik katsayısı ile çarpılır)
+    toplam_ceza = sum(gecikmeler[i] * ucaklar[i]["ceza"] * ucaklar[i]["oncelik"] for i in range(len(ucaklar)))
     model.Minimize(toplam_ceza)
 
     solver = cp_model.CpSolver()
@@ -101,55 +146,45 @@ def optimizasyon_calistir(ucaklar, TOPLAM_SLOT, GUNLUK_MAKS_ADAM_SAAT, PLANLAMA_
     return solver, status, baslangic, bitis, gecikmeler, slot_atama
 
 # =========================================================================
-# ÇIKTI EKRANI (DASHBOARD)
+# DASHBOARD / ÇIKTI SİSTEMİ
 # =========================================================================
-if baslat_butonu:
-    solver, status, baslangic, bitis, gecikmeler, slot_atama = optimizasyon_calistir(
-        ucaklar, TOPLAM_SLOT, GUNLUK_MAKS_ADAM_SAAT, PLANLAMA_UFUKU
+if baslat_butonu and len(guncel_ucaklar) > 0:
+    solver, status, baslangic, bitis, gecikmeler, slot_atama = gelismis_optimizasyon(
+        guncel_ucaklar, TOPLAM_SLOT, GUNLUK_MAKS_ADAM_SAAT, PLANLAMA_UFUKU, HAFTA_SONU_YASAGI
     )
 
     if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-        st.error("❌ Girilen kısıtlar altında uygun bir planlama bulunamadı! Lütfen slot sayısını veya adam/saat kapasitesini artırın.")
+        st.error("❌ Belirtilen operasyonel kurallar ve kapasite sınırları dahilinde ÇÖZÜM BULUNAMADI! Lütfen hangar slotunu veya günlük adam/saat sınırını esnetin.")
     else:
-        # Metrik Kartları
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric(label="Toplam Gecikme Cezası", value=f"{solver.ObjectiveValue():,.0f} $")
-        with col2:
-            durum_metni = "En İyi Çözüm (Optimal)" if status == cp_model.OPTIMAL else "Uygun Çözüm (Feasible)"
-            st.metric(label="Çözücü Durumu", value=durum_metni)
+        # Metrik Skor Kartları
+        c1, c2, c3 = st.columns(3)
+        with c1: st.metric("Ağırlıklı Toplam Ceza Maliyeti", f"{solver.ObjectiveValue():,.0f} $")
+        with c2: st.metric("Planlanan Toplam Uçak", f"{len(guncel_ucaklar)} Yakın")
+        with c3: st.metric("Yazılım Durumu", "Optimal Çözüm Başarılı" if status == cp_model.OPTIMAL else "Uygun Plan Bulundu")
 
-        # Tablo oluşturma
+        # Veri Dönüştürme
         bugun = datetime.now().replace(hour=8, minute=0, second=0, microsecond=0)
-        veri_listesi = []
-        for i, ucak in enumerate(ucaklar):
-            bas_gun = solver.Value(baslangic[i])
-            bit_gun = solver.Value(bitis[i])
-            gec_gun = solver.Value(gecikmeler[i])
-            veri_listesi.append({
-                "Uçak": ucak["ad"],
-                "Başlangıç": bugun + timedelta(days=bas_gun),
-                "Bitiş": bugun + timedelta(days=bit_gun),
-                "Slot": f"Hangar Slot {solver.Value(slot_atama[i])}",
-                "Süre (Gün)": ucak["sure"],
-                "Adam/Saat": ucak["adam_saat"],
-                "Gecikme (Gün)": gec_gun,
-                "Durum": "🔴 Gecikmeli" if gec_gun > 0 else "🟢 Zamanında",
+        veri = []
+        for i, uc in enumerate(guncel_ucaklar):
+            b_gun = solver.Value(baslangic[i])
+            bt_gun = solver.Value(bitis[i])
+            g_gun = solver.Value(gecikmeler[i])
+            veri.append({
+                "Uçak Tescil": uc["ad"],
+                "Gövde Tipi": uc["model_tipi"],
+                "Bakım Türü": uc["bakim_tipi"],
+                "Atanan Slot": f"Hangar Slot {solver.Value(slot_atama[i])}",
+                "Planlanan Başlangıç": (bugun + timedelta(days=b_gun)).strftime("%Y-%m-%d %H:%M"),
+                "Planlanan Bitiş": (bugun + timedelta(days=bt_gun)).strftime("%Y-%m-%d %H:%M"),
+                "Süre (Gün)": uc["sure"],
+                "Gecikme (Gün)": g_gun,
+                "Öncelik Skoru": uc["oncelik"],
+                "Durum": "🔴 Gecikmeli" if g_gun > 0 else "🟢 Zamanında"
             })
-        df = pd.DataFrame(veri_listesi)
 
-        # Gantt Şeması Çizimi
-        st.subheader("📊 Optimizasyon Sonucu Gantt Şeması")
-        fig = px.timeline(
-            df, x_start="Başlangıç", x_end="Bitiş", y="Slot", color="Uçak", text="Uçak",
-            hover_data=["Süre (Gün)", "Adam/Saat", "Gecikme (Gün)", "Durum"],
-        )
-        fig.update_yaxes(autorange="reversed")
-        fig.update_layout(xaxis_title="Tarih", height=350)
-        st.plotly_chart(fig, use_container_width=True)
 
-        # Veri Tablosu Gösterimi
-        st.subheader("📋 Detaylı Planlama Tablosu")
-        st.dataframe(df, use_container_width=True)
-else:
-    st.info("💡 Planlama sonuçlarını ve grafiği görmek için sol taraftaki menüden değerleri ayarlayıp **'Planlamayı Başlat'** butonuna basın.")
+df = pd.DataFrame(veri)# Gantt Grafik Gösterimist.subheader("📊 Dijital Bakım Planlama Gantt Çizelgesi")fig = px.timeline(df, x_start="Planlanan Başlangıç", x_end="Planlanan Bitiş", y="Atanan Slot",color="Uçak Tescil", text="Uçak Tescil",hover_data=["Bakım Türü", "Gövde Tipi", "Gecikme (Gün)", "Durum"])fig.update_yaxes(autorange="reversed")fig.update_layout(xaxis_title="Operasyon Zaman Akışı", height=400, legend_title="Uçaklar")st.plotly_chart(fig, use_container_width=True)# Tablost.subheader("📋 Detaylı Çizelge Raporu")st.dataframe(df, use_container_width=True)# Excel Olarak İndirme Butonu (Öneri 5)buffer = io.BytesIO()with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:df.to_excel(writer, sheet_name='Bakım_Plani', index=False)st.download_button(label="📥 Planlama Raporunu Excel Olarak İndir",data=buffer.getvalue(),file_name=f"Turkish_Technic_Bakim_Plani_{datetime.now().strftime('%Y%m%d')}.xlsx",mime="application/vnd.ms-excel")elif len(guncel_ucaklar) == 0:st.warning("⚠️ Lütfen sol menüden filoya en az bir uçak ekleyin.")else:st.info("💡 Yeni kısıtlar ve uçaklar sisteme entegre edildi. Hesaplamayı başlatmak için sol panelin altındaki 'Planlamayı Başlat' butonuna basın.")
+
+
+
+
