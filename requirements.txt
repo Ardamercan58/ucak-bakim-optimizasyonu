@@ -1,5 +1,8 @@
-ortools
-plotly
-pandas
-streamlit
-xlsxwriter
+streamlit>=1.35
+ortools>=9.9
+pandas>=2.0
+numpy>=1.24
+plotly>=5.20
+xlsxwriter>=3.2
+scikit-learn>=1.4
+holidays>=0.50
