@@ -217,25 +217,20 @@ if baslat_butonu and len(guncel_ucaklar) > 0:
             st.metric("Planlanan Uçak", f"{len(guncel_ucaklar)} Adet")
             st.metric("Toplam Bakım İş Gücü", f"{toplam_is_gunu} Gün")
             
-        with m3:
+                with m3:
             max_kapasite_gun = TOPLAM_SLOT * PLANLAMA_UFUKU
             doluluk_orani = (toplam_is_gunu / max_kapasite_gun) * 100 if max_kapasite_gun > 0 else 0
             
-            fig_gauge = go.Figure(go.Indicator(
-                mode="gauge+number", 
-                value=doluluk_orani,
-                title={'text': "Hangar Slot Doluluk Oranı (%)"},
-                gauge={
-                    'axis': {'range': [0, 100]}, 
-                    'bar': {'color': "darkblue"},
-                    'steps': [
-                        {'range', 'color', 'lightgray'}, 
-                        {'range', 'color' ,'gray'}
-                    ]
-                }
-            ))
-            fig_gauge.update_layout(height=180, margin=dict(l=10, r=10, t=40, b=10))
-            st.plotly_chart(fig_gauge, use_container_width=True)
+            # Hata veren grafik yerine pürüzsüz çalışan ilerleme çubuğu ve gösterge
+            st.markdown(f"**Hangar Slot Doluluk Oranı: %{doluluk_orani:.1f}**")
+            st.progress(min(float(doluluk_orani / 100.0), 1.0))
+            
+            if doluluk_orani > 90:
+                st.warning("⚠️ Hangar kapasitesi kritik seviyede dolu!")
+            elif doluluk_orani > 50:
+                st.info("⚡ Hangar kullanımı ideal seviyede.")
+            else:
+                st.success("🟢 Hangarda yeni uçaklar için rahat yer var.")
 
         st.markdown("---")
 
