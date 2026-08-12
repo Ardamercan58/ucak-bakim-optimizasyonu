@@ -206,7 +206,7 @@ if baslat_butonu and len(guncel_ucaklar) > 0:
 
         df = pd.DataFrame(veri)
 
-        st.subheader("📊 Operasyonel Performans Özet Paneli")
+                st.subheader("📊 Operasyonel Performans Özet Paneli")
         m1, m2, m3 = st.columns(3)
         
         with m1:
@@ -217,14 +217,11 @@ if baslat_butonu and len(guncel_ucaklar) > 0:
             st.metric("Planlanan Uçak", f"{len(guncel_ucaklar)} Adet")
             st.metric("Toplam Bakım İş Gücü", f"{toplam_is_gunu} Gün")
             
-                with m3:
+        with m3:
             max_kapasite_gun = TOPLAM_SLOT * PLANLAMA_UFUKU
             doluluk_orani = (toplam_is_gunu / max_kapasite_gun) * 100 if max_kapasite_gun > 0 else 0
-            
-            # Hata veren grafik yerine pürüzsüz çalışan ilerleme çubuğu ve gösterge
-            st.markdown(f"**Hangar Slot Doluluk Oranı: %{doluluk_orani:.1f}**")
+            st.write(f"**Hangar Slot Doluluk Oranı: %{doluluk_orani:.1f}**")
             st.progress(min(float(doluluk_orani / 100.0), 1.0))
-            
             if doluluk_orani > 90:
                 st.warning("⚠️ Hangar kapasitesi kritik seviyede dolu!")
             elif doluluk_orani > 50:
@@ -233,6 +230,7 @@ if baslat_butonu and len(guncel_ucaklar) > 0:
                 st.success("🟢 Hangarda yeni uçaklar için rahat yer var.")
 
         st.markdown("---")
+
 
         g1, g2 = st.columns(2)
         
