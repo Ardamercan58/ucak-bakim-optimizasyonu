@@ -16,9 +16,9 @@ st.write("Turkish Technic operasyonel kurallarına göre dinamik planlama paneli
 # SOL PANEL: GENEL PARAMETRELER
 # =========================================================================
 st.sidebar.header("⚙️ 1. Genel Planlama Ayarları")
-TOPLAM_SLOT = st.sidebar.number_input("Toplam Hangar Slot Sayısı", min_value=1, max_value=5, value=2)
-GUNLUK_MAKS_ADAM_SAAT = st.sidebar.number_input("Günlük Maksimum Adam/Saat", min_value=10, max_value=300, value=70)
-PLANLAMA_UFUKU = st.sidebar.number_input("Zaman Ufku (Gün)", min_value=5, max_value=40, value=20)
+TOPLAM_SLOT = st.sidebar.number_input("Toplam Hangar Slot Sayısı", min_value=1, max_value=10, value=2)
+GUNLUK_MAKS_ADAM_SAAT = st.sidebar.number_input("Günlük Maksimum Adam/Saat", min_value=10, max_value=3000, value=70)
+PLANLAMA_UFUKU = st.sidebar.number_input("Zaman Ufku (Gün)", min_value=5, max_value=400, value=20)
 HAFTA_SONU_YASAGI = st.sidebar.checkbox("Bakım hafta sonu başlayamaz / bitemez", value=True)
 
 st.sidebar.markdown("---")
