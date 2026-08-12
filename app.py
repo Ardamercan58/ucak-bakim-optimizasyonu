@@ -229,8 +229,8 @@ if baslat_butonu and len(guncel_ucaklar) > 0:
                     'axis': {'range': [0, 100]}, 
                     'bar': {'color': "darkblue"},
                     'steps': [
-                        {'range':, 'color': 'lightgray'}, 
-                        {'range':, 'color': 'gray'}
+                        {'range':, 'color':, 'lightgray'}, 
+                        {'range':, 'color': ,'gray'}
                     ]
                 }
             ))
