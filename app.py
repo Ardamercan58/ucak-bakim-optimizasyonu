@@ -183,6 +183,19 @@ if baslat_butonu and len(guncel_ucaklar) > 0:
             })
         df = pd.DataFrame(veri)
 
-        # Gantt Grafik Gösterimi
+        
+                # Gantt Grafik Gösterimi
         st.subheader("📊 Dijital Bakım Planlama Gantt Çizelgesi")
-fig = px.timeline(df, x_start="Planlanan Başlangıç", x_end="Planlanan Bitiş", y="Atanan Slot",color="Uçak Tescil", text="Uçak Tescil",hover_data=["Bakım Türü", "Gövde Tipi", "Gecikme (Gün)", "Durum"])fig.update_yaxes(autorange="reversed")fig.update_layout(xaxis_title="Operasyon Zaman Akışı", height=400, legend_title="Uçaklar")st.plotly_chart(fig, use_container_width=True) 
+        fig = px.timeline(
+            df, 
+            x_start="Planlanan Başlangıç", 
+            x_end="Planlanan Bitiş", 
+            y="Atanan Slot", 
+            color="Uçak Tescil", 
+            text="Uçak Tescil",
+            hover_data=["Bakım Türü", "Gövde Tipi", "Gecikme (Gün)", "Durum"]
+        )
+        fig.update_yaxes(autorange="reversed")
+        fig.update_layout(xaxis_title="Operasyon Zaman Akışı", height=400, legend_title="Uçaklar")
+        st.plotly_chart(fig, use_container_width=True)
+
