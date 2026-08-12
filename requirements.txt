@@ -2,3 +2,4 @@ ortools
 plotly
 pandas
 streamlit
+xlsxwriter
