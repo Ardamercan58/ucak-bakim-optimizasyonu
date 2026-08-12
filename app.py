@@ -165,6 +165,9 @@ def gelismis_optimizasyon(ucaklar, TOPLAM_SLOT, GUNLUK_MAKS_ADAM_SAAT, PLANLAMA_
 # =========================================================================
 # DASHBOARD / ÇIKTI SİSTEMİ
 # =========================================================================
+# =========================================================================
+# DASHBOARD / ÇIKTI SİSTEMİ
+# =========================================================================
 if baslat_butonu and len(guncel_ucaklar) > 0:
     solver, status, baslangic, bitis, gecikmeler, slot_atama = gelismis_optimizasyon(
         guncel_ucaklar, TOPLAM_SLOT, GUNLUK_MAKS_ADAM_SAAT, PLANLAMA_UFUKU, HAFTA_SONU_YASAGI, PLAN_BASLANGIC, DAR_GOVDE_TEKNISYEN, GENIS_GOVDE_TEKNISYEN
@@ -173,13 +176,11 @@ if baslat_butonu and len(guncel_ucaklar) > 0:
     if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
         st.error("❌ Belirtilen teknik sertifika, personel veya slot sınırları dahilinde ÇÖZÜM BULUNAMADI! Lütfen kısıtları gevşetin.")
     else:
-        # Veri Dönüştürme (Öncelikli Başlangıç)
         bugun = datetime.combine(PLAN_BASLANGIC, datetime.min.time()).replace(hour=8, minute=0)
-        veri, maliyet_veri = [], []
+        veri = []
+        maliyet_veri = []
         toplam_is_gunu = 0
 
-        for i, uc in enumerate(guncel_ucaklar):
-            b_gun = solver.Value(baslangic[i])
         for i, uc in enumerate(guncel_ucaklar):
             b_gun = solver.Value(baslangic[i])
             bt_gun = solver.Value(bitis[i])
@@ -205,7 +206,7 @@ if baslat_butonu and len(guncel_ucaklar) > 0:
 
         df = pd.DataFrame(veri)
 
-                st.subheader("📊 Operasyonel Performans Özet Paneli")
+        st.subheader("📊 Operasyonel Performans Özet Paneli")
         m1, m2, m3 = st.columns(3)
         
         with m1:
@@ -237,7 +238,6 @@ if baslat_butonu and len(guncel_ucaklar) > 0:
             st.plotly_chart(fig_gauge, use_container_width=True)
 
         st.markdown("---")
-
 
         g1, g2 = st.columns(2)
         
@@ -283,3 +283,4 @@ elif len(guncel_ucaklar) == 0:
     st.warning("⚠️ Lütfen sol menüden filoya en az bir uçak ekleyin.")
 else:
     st.info("💡 Tüm kurumsal ve teknik kısıtlar entegre edildi. Başlatmak için sol paneldeki **'Planlamayı Başlat'** butonuna basın.")
+
