@@ -25,11 +25,14 @@ st.sidebar.markdown("---")
 st.sidebar.header("🛩️ 2. Filo Yönetimi (Uçak Ekleme)")
 
 # Session State ile dinamik uçak listesi tutma
-if "ucak_listesi" not in st.st_profile if hasattr(st, "st_profile") else st.session_state:
+# Doğru olan yeni blok:
+if "ucak_listesi" not in st.session_state:
     st.session_state.ucak_listesi = [
         {"ad": "TC-JPE", "model_tipi": "Dar Gövde (A320/B737)", "bakim_tipi": "C-Check", "teslim_hedefi": 5, "ceza": 1000, "parca_gun": 0, "oncelik": "3 - Normal"},
         {"ad": "TC-JJJ", "model_tipi": "Geniş Gövde (A330/B787)", "bakim_tipi": "D-Check", "teslim_hedefi": 8, "ceza": 2000, "parca_gun": 2, "oncelik": "5 - AOG (Kritik)"},
     ]
+
+    
 
 # Yeni uçak ekleme arayüzü
 with st.sidebar.expander("➕ Yeni Uçak Tanımla", expanded=False):
