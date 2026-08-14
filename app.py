@@ -168,7 +168,12 @@ with st.sidebar.expander("➕ Yeni Uçak Tanımla", expanded=False):
     y_ad = st.text_input("Kuyruk Tescili / Adı", "TC-XYZ")
     y_model = st.selectbox("Gövde Tipi", ["Dar Gövde (A320/B737)", "Geniş Gövde (A330/B787)"])
     y_bakim = st.selectbox("Bakım Türü", BAKIM_TIPLERI)
-    y_hedef = st.number_input("Hedef Teslim (Gün)", min_value=1, value=6)
+    y_hedef = st.number_input(
+        "Hedef Teslim Süresi (Gün)", min_value=1, value=6,
+        help="Bu uçağın bakımı fiilen HANGİ GÜN BAŞLARSA başlasın (slot müsaitlik durumuna göre), "
+             "o başlangıç gününden itibaren kaç gün içinde teslim edilmesi istendiği (turnaround hedefi). "
+             "Bugünden itibaren sabit bir takvim günü DEĞİLDİR."
+    )
     y_ceza = st.number_input("Gecikme Cezası ($/Gün)", min_value=0, value=1200)
     y_parca = st.number_input("Parça Bekleme (Gün)", min_value=0, value=0)
     y_yil = st.number_input("İmalat Yılı", min_value=1970, max_value=datetime.now().year, value=2015)
@@ -198,7 +203,10 @@ for idx, uc in enumerate(st.session_state.ucak_listesi):
         u_model = st.selectbox("Gövde", ["Dar Gövde (A320/B737)", "Geniş Gövde (A330/B787)"],
                                 index=0 if "Dar" in uc["model_tipi"] else 1, key=f"mod_{idx}")
         u_bakim = st.selectbox("Tür", BAKIM_TIPLERI, index=BAKIM_TIPLERI.index(uc["bakim_tipi"]) if uc["bakim_tipi"] in BAKIM_TIPLERI else 0, key=f"bak_{idx}")
-        u_hedef = st.number_input("Hedef (Gün)", min_value=1, value=uc["teslim_hedefi"], key=f"hdf_{idx}")
+        u_hedef = st.number_input(
+            "Hedef Teslim Süresi (Gün)", min_value=1, value=uc["teslim_hedefi"], key=f"hdf_{idx}",
+            help="O uçağın kendi bakım başlangıç gününden itibaren hedeflenen teslim süresi (gün)."
+        )
         u_ceza = st.number_input("Ceza ($)", min_value=0, value=uc["ceza"], key=f"cz_{idx}")
         u_parca = st.number_input("Parça Günü", min_value=0, value=uc["parca_gun"], key=f"prc_{idx}")
         u_yil = st.number_input("İmalat Yılı", min_value=1970, max_value=datetime.now().year,
@@ -223,7 +231,8 @@ for idx, uc in enumerate(st.session_state.ucak_listesi):
         if not u_ad.strip():
             dogrulama_hatalari.append(f"{idx + 1}. sıradaki uçağın adı boş olamaz.")
         if u_hedef < sure:
-            st.info(f"ℹ️ Hedef teslim ({u_hedef} gün) tahmini bakım süresinden ({sure} gün) kısa; gecikme kaçınılmaz olabilir.")
+            st.info(f"ℹ️ Hedef teslim süresi ({u_hedef} gün) tahmini bakım süresinden ({sure} gün) kısa; "
+                    f"bakım fiilen başladığı andan itibaren bile gecikme kaçınılmaz olabilir.")
 
         guncel_ucaklar.append({
             "ad": u_ad.strip(), "model_tipi": u_model, "bakim_tipi": bakim_kisa, "sure": sure, "adam_saat": adam,
@@ -256,7 +265,7 @@ def gelismis_optimizasyon(ucaklar, ekipler, ekipmanlar, toplam_slot, gunluk_maks
                            planlama_ufuku, hafta_sonu_yasagi, tatil_indeksleri):
     model = cp_model.CpModel()
     n = len(ucaklar)
-    baslangic, bitis, aralik, gecikmeler, slot_atama, ekip_atama = {}, {}, {}, {}, {}, {}
+    baslangic, bitis, aralik, gecikmeler, slot_atama, ekip_atama, hedef_bitis = {}, {}, {}, {}, {}, {}, {}
     bugun = datetime.now()
 
     kapali_gunler = set()
@@ -282,8 +291,18 @@ def gelismis_optimizasyon(ucaklar, ekipler, ekipmanlar, toplam_slot, gunluk_maks
             yetkin_ekip_idx = list(range(len(ekipler)))
         ekip_atama[i] = model.NewIntVarFromDomain(cp_model.Domain.FromValues(yetkin_ekip_idx), f"ekip_{i}")
 
+        # ---------------------------------------------------------------
+        # ÖNEMLİ: Hedef teslim süresi artık BUGÜNDEN (gün 0) değil,
+        # bu uçağın bakımının FİİLEN BAŞLADIĞI günden (baslangic[i]) itibaren
+        # hesaplanıyor. Böylece hangi slota/kuyruğa düşerse düşsün, hedef
+        # kendi gerçek başlangıç tarihine göre kayar; ilk slotun (ya da
+        # bugünün) başlangıcına sabitlenmez.
+        # ---------------------------------------------------------------
+        hedef_bitis[i] = model.NewIntVar(0, planlama_ufuku + ucak["teslim_hedefi"], f"hedefbit_{i}")
+        model.Add(hedef_bitis[i] == baslangic[i] + ucak["teslim_hedefi"])
+
         gecikmeler[i] = model.NewIntVar(0, planlama_ufuku, f"gecikme_{i}")
-        model.AddMaxEquality(gecikmeler[i], [0, bitis[i] - ucak["teslim_hedefi"]])
+        model.AddMaxEquality(gecikmeler[i], [0, bitis[i] - hedef_bitis[i]])
 
         for h in kapali_gunler:
             model.Add(baslangic[i] != h)
@@ -334,7 +353,7 @@ def gelismis_optimizasyon(ucaklar, ekipler, ekipmanlar, toplam_slot, gunluk_maks
     solver.parameters.max_time_in_seconds = min(30.0, 5.0 + 2.0 * n)
     solver.parameters.num_search_workers = 8
     status = solver.Solve(model)
-    return solver, status, baslangic, bitis, gecikmeler, slot_atama, ekip_atama
+    return solver, status, baslangic, bitis, gecikmeler, slot_atama, ekip_atama, hedef_bitis
 
 
 def esneklik_ile_coz(ucaklar, ekipler, ekipmanlar, toplam_slot, gunluk_maks_adam_saat,
@@ -359,13 +378,14 @@ def esneklik_ile_coz(ucaklar, ekipler, ekipmanlar, toplam_slot, gunluk_maks_adam
     return sonuc, None, (toplam_slot, gunluk_maks_adam_saat, planlama_ufuku)
 
 
-def sonuclari_dataframe_yap(guncel_ucaklar, ekipler, solver, baslangic, bitis, gecikmeler, slot_atama, ekip_atama):
+def sonuclari_dataframe_yap(guncel_ucaklar, ekipler, solver, baslangic, bitis, gecikmeler, slot_atama, ekip_atama, hedef_bitis):
     bugun = datetime.now().replace(hour=8, minute=0, second=0, microsecond=0)
     veri = []
     for i, uc in enumerate(guncel_ucaklar):
         b_gun = solver.Value(baslangic[i])
         bt_gun = solver.Value(bitis[i])
         g_gun = solver.Value(gecikmeler[i])
+        hb_gun = solver.Value(hedef_bitis[i])
         veri.append({
             "Uçak Tescil": uc["ad"],
             "Gövde Tipi": uc["model_tipi"],
@@ -375,6 +395,7 @@ def sonuclari_dataframe_yap(guncel_ucaklar, ekipler, solver, baslangic, bitis, g
             "Atanan Ekip": ekipler[solver.Value(ekip_atama[i])]["ad"],
             "Planlanan Başlangıç": (bugun + timedelta(days=b_gun)).strftime("%Y-%m-%d %H:%M"),
             "Planlanan Bitiş": (bugun + timedelta(days=bt_gun)).strftime("%Y-%m-%d %H:%M"),
+            "Hedef Bitiş Tarihi": (bugun + timedelta(days=hb_gun)).strftime("%Y-%m-%d %H:%M"),
             "Süre (Gün)": uc["sure"],
             "Adam/Saat": uc["adam_saat"],
             "Gecikme (Gün)": g_gun,
@@ -398,7 +419,7 @@ def excel_indirme_arabellegi(df):
 if baslat_butonu and len(guncel_ucaklar) > 0:
     tatil_indeksleri = tatil_indekslerini_getir(datetime.now(), PLANLAMA_UFUKU) if RESMI_TATIL_YASAGI else []
 
-    (solver, status, baslangic, bitis, gecikmeler, slot_atama, ekip_atama), esneklik_etiketi, kullanilan_parametreler = \
+    (solver, status, baslangic, bitis, gecikmeler, slot_atama, ekip_atama, hedef_bitis), esneklik_etiketi, kullanilan_parametreler = \
         esneklik_ile_coz(guncel_ucaklar, st.session_state.ekip_listesi, st.session_state.ekipman_listesi,
                           TOPLAM_SLOT, GUNLUK_MAKS_ADAM_SAAT, PLANLAMA_UFUKU, HAFTA_SONU_YASAGI, tatil_indeksleri)
 
@@ -418,7 +439,7 @@ if baslat_butonu and len(guncel_ucaklar) > 0:
             )
 
         df = sonuclari_dataframe_yap(guncel_ucaklar, st.session_state.ekip_listesi, solver, baslangic, bitis,
-                                      gecikmeler, slot_atama, ekip_atama)
+                                      gecikmeler, slot_atama, ekip_atama, hedef_bitis)
 
         # ---- KPI Kartları ----
         ortalama_gecikme = df["Gecikme (Gün)"].mean()
@@ -443,7 +464,8 @@ if baslat_butonu and len(guncel_ucaklar) > 0:
             st.metric("Adam/Saat Kapasite Kullanımı", f"{kapasite_kullanim_orani:.0f}%")
 
         st.caption(f"Hangar slot doluluk oranı (slot-gün bazında): **{slot_doluluk_orani:.0f}%** • "
-                   f"Yazılım Durumu: **{'Optimal Çözüm' if status == cp_model.OPTIMAL else 'Uygun (Feasible) Çözüm'}**")
+                   f"Yazılım Durumu: **{'Optimal Çözüm' if status == cp_model.OPTIMAL else 'Uygun (Feasible) Çözüm'}** • "
+                   f"Not: Hedef Bitiş Tarihi, her uçağın kendi fiili başlangıç gününe göre hesaplanır.")
 
         # ---- Gantt Grafik ----
         st.subheader("📊 Dijital Bakım Planlama Gantt Çizelgesi")
@@ -454,7 +476,7 @@ if baslat_butonu and len(guncel_ucaklar) > 0:
             y="Atanan Slot",
             color="Uçak Tescil",
             text="Uçak Tescil",
-            hover_data=["Bakım Türü", "Gövde Tipi", "Atanan Ekip", "Gecikme (Gün)", "Durum"]
+            hover_data=["Bakım Türü", "Gövde Tipi", "Atanan Ekip", "Hedef Bitiş Tarihi", "Gecikme (Gün)", "Durum"]
         )
         fig.update_yaxes(autorange="reversed")
         fig.update_layout(xaxis_title="Operasyon Zaman Akışı", height=400, legend_title="Uçaklar")
